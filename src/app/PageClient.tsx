@@ -108,10 +108,69 @@ export default function PageClient() {
     [opsMode]
   );
   const galleryClips = opsMode === "Perch" ? perchClips : autopilotClips;
+  const [botStats, setBotStats] = useState({
+    battery: 78,
+    reserveBattery: 20,
+    distanceMeters: 120,
+    uptimeMinutes: 42,
+  });
+  const [memory, setMemory] = useState<
+    { from: "GBird" | "You"; text: string; time: string; mode: "voice" | "comms" }[]
+  >([]);
+
+  // Load persisted memory on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem("gbird-memory");
+    if (saved) {
+      try {
+        setMemory(JSON.parse(saved));
+      } catch {
+        setMemory([]);
+      }
+    }
+  }, []);
+
+  // Persist memory
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("gbird-memory", JSON.stringify(memory.slice(-50)));
+  }, [memory]);
+
+  const recordMemory = (entry: { from: "GBird" | "You"; text: string; mode: "voice" | "comms" }) => {
+    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    setMemory((prev) => [...prev, { ...entry, time }].slice(-50));
+  };
+
+  const refreshStats = () => {
+    // lightweight simulated telemetry update
+    setBotStats((prev) => {
+      const drain = 1 + Math.round(Math.random() * 2);
+      let battery = Math.max(0, Math.min(100, prev.battery - drain));
+      let reserveBattery = prev.reserveBattery;
+      // auto-trigger emergency pack if main battery drops too low
+      if (battery <= 5 && reserveBattery > 0) {
+        const boost = Math.min(reserveBattery, 25);
+        battery = Math.min(100, battery + boost);
+        reserveBattery = Math.max(0, reserveBattery - boost);
+        appendComms({
+          from: "GBird",
+          text: "Emergency pack activated to reach base safely.",
+        });
+      }
+      const distanceMeters = Math.max(
+        30,
+        Math.min(500, prev.distanceMeters + Math.round(Math.random() * 20 - 10))
+      );
+      const uptimeMinutes = prev.uptimeMinutes + 5;
+      return { battery, reserveBattery, distanceMeters, uptimeMinutes };
+    });
+  };
 
   const appendComms = (entry: { from: "GBird" | "You"; text: string }) => {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     setCommsLog((prev) => [...prev, { ...entry, time }]);
+    recordMemory({ ...entry, mode: "comms" });
   };
 
   const handleQuickCommand = (cmd: string) => {
@@ -179,7 +238,7 @@ export default function PageClient() {
     mediaRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunks.push(e.data);
     };
-    mediaRecorder.onstop = async () => {
+  mediaRecorder.onstop = async () => {
       const blob = new Blob(chunks, { type: "audio/webm" });
       const form = new FormData();
       form.append("file", blob, "speech.webm");
@@ -196,6 +255,7 @@ export default function PageClient() {
           throw new Error(data.error || "Transcription failed");
         }
         setLiveTranscript(data.text);
+        recordMemory({ from: "You", text: data.text, mode: "voice" });
 
         const respond = await fetch("/api/respond", {
           method: "POST",
@@ -212,6 +272,7 @@ export default function PageClient() {
           throw new Error(rjson.error || "Groq/Elevens response failed");
         }
         setLiveTranscript(rjson.reply);
+        recordMemory({ from: "GBird", text: rjson.reply, mode: "voice" });
         const buf = Uint8Array.from(atob(rjson.audio_base64), (c) => c.charCodeAt(0));
         const audioBlob = new Blob([buf], { type: rjson.media_type ?? "audio/mpeg" });
         const url = URL.createObjectURL(audioBlob);
@@ -323,6 +384,54 @@ export default function PageClient() {
               <strong>30</strong>
             </div>
           </div>
+        </section>
+
+        <section className={`${styles.card} ${styles.statsCard}`}>
+          <div className={styles.cardHead}>
+            <p className={styles.cardKicker}>Bot stats</p>
+            <button type="button" className={styles.ghostButton} onClick={refreshStats}>
+              Refresh
+            </button>
+          </div>
+          <div className={styles.telemetryGrid}>
+            <div className={styles.telemetryItem}>
+              <span>Battery</span>
+              <strong>{botStats.battery}%</strong>
+            </div>
+            <div className={styles.telemetryItem}>
+              <span>Emergency reserve</span>
+              <strong>{botStats.reserveBattery}%</strong>
+            </div>
+            <div className={styles.telemetryItem}>
+              <span>Distance</span>
+              <strong>{botStats.distanceMeters} m</strong>
+            </div>
+            <div className={styles.telemetryItem}>
+              <span>Uptime</span>
+              <strong>{botStats.uptimeMinutes} min</strong>
+            </div>
+          </div>
+        </section>
+
+        <section className={`${styles.card} ${styles.memoryCard}`}>
+          <div className={styles.cardHead}>
+            <p className={styles.cardKicker}>Memory</p>
+            <span className={styles.pill}>{memory.length} entries</span>
+          </div>
+          {memory.length === 0 ? (
+            <p className={styles.helper}>No stored conversations yet.</p>
+          ) : (
+            <ul className={styles.missionList}>
+              {[...memory].reverse().slice(0, 8).map((item, idx) => (
+                <li key={`${item.time}-${idx}`}>
+                  <span className={styles.missionTime}>{item.time}</span>
+                  <span className={styles.missionText}>
+                    {item.from}: {item.text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className={`${styles.card} ${styles.opsCard}`}>
