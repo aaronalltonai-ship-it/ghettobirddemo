@@ -15,7 +15,7 @@ const missionLog = [
   { time: "21:07", text: "Perimeter sweep complete." },
   { time: "21:11", text: "Target tagged. Holding." },
 ];
-const fieldClips = [
+const autopilotClips = [
   {
     id: "wooden-gate",
     title: "Wooden Gate Approach",
@@ -54,6 +54,27 @@ const fieldClips = [
   },
 ];
 
+const perchClips = [
+  {
+    id: "perch-neighborhood",
+    title: "Perch – Neighborhood",
+    file: "/clips/perch-neighborhood.mp4",
+    note: "Low perch over wood fences and backyards in a quiet block.",
+  },
+  {
+    id: "wooden-gate",
+    title: "Wooden Gate Approach",
+    file: "/clips/wooden-gate.mp4",
+    note: "Forward crawl toward the gate, ~30-40 ft hover.",
+  },
+  {
+    id: "red-lens-left-pan",
+    title: "Red Lens Left Pan",
+    file: "/clips/red-lens-left-pan.mp4",
+    note: "Rotates left ~90 deg while overlooking a backyard in red lens.",
+  },
+];
+
 export default function PageClient() {
   const [nav, setNav] = useState<"home" | "voice" | "vision" | "logs">("home");
   const [opsMode, setOpsMode] = useState<"Autopilot" | "Perch">("Autopilot");
@@ -83,9 +104,10 @@ export default function PageClient() {
 
   const heroClip = useMemo(() => "/clips/red-lens-overlook.mp4", []);
   const visionClip = useMemo(
-    () => (opsMode === "Perch" ? "/clips/perch-corner.mp4" : "/clips/alley-zoom.mp4"),
+    () => (opsMode === "Perch" ? "/clips/perch-neighborhood.mp4" : "/clips/alley-zoom.mp4"),
     [opsMode]
   );
+  const galleryClips = opsMode === "Perch" ? perchClips : autopilotClips;
 
   const appendComms = (entry: { from: "GBird" | "You"; text: string }) => {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
