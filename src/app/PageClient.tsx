@@ -523,7 +523,7 @@ export default function PageClient() {
             <span className={styles.pill}>{fieldClips.length} feeds</span>
           </div>
           <div className={styles.galleryGrid}>
-            {fieldClips.map((clip) => (
+            {galleryClips.map((clip) => (
               <div key={clip.id} className={styles.galleryItem}>
                 <video
                   className={styles.galleryVideo}
