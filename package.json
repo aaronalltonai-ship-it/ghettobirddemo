@@ -1,0 +1,41 @@
+{
+  "name": "ghettobirddemo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:webpack": "cross-env NEXT_DISABLE_TURBOPACK=1 next dev",
+    "build": "cross-env NEXT_DISABLE_TURBOPACK=1 next build",
+    "build:webpack": "cross-env NEXT_DISABLE_TURBOPACK=1 next build",
+    "start": "next start",
+    "lint": "eslint src next.config.js eslint.config.mjs --no-cache",
+    "db:push": "prisma db push",
+    "db:seed": "prisma db seed"
+  },
+  "dependencies": {
+    "@ai-sdk/groq": "^3.0.2",
+    "@e2b/code-interpreter": "^2.3.3",
+    "@prisma/client": "^5.22.0",
+    "ai": "^3.4.33",
+    "e2b": "^2.8.4",
+    "next": "16.1.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "baseline-browser-mapping": "^2.9.11",
+    "cross-env": "^10.1.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.0",
+    "prisma": "^5.22.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  }
+}

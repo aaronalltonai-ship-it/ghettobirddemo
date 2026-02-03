@@ -1,0 +1,40 @@
+import type { Metadata } from "next";
+import type { CSSProperties } from "react";
+import VoiceLab from "./VoiceLab";
+import styles from "./page.module.css";
+
+export const metadata: Metadata = {
+  title: "Ghettobird Ops",
+  description: "Field ops control with voice-ready ElevenLabs integration.",
+};
+
+const visionFeed = [
+  { id: "EYE-07", zone: "Sector C", status: "tracking", note: "Thermals stable" },
+  { id: "ECHO-19", zone: "Industrial West", status: "hold", note: "Perimeter green" },
+  { id: "UNIT-05", zone: "Riverline", status: "standby", note: "Loiter pattern" },
+];
+
+const opsStats = [
+  { label: "Ops tempo", value: "Live", tone: "live" },
+  { label: "Coverage", value: "92%", tone: "warm" },
+  { label: "Uplink", value: "99.2%", tone: "cool" },
+  { label: "Airframes", value: "3 active", tone: "live" },
+];
+
+const missionLog = [
+  { time: "00:02", text: "Dispatch: Signal verified, corridor cleared." },
+  { time: "00:46", text: "Intercept: Visual lock, comms synced." },
+  { time: "01:20", text: "Stabilize: Ground units staged." },
+  { time: "02:18", text: "Resolve: Target contained, debrief queued." },
+];
+
+const quickAgents = [
+  { name: "Raven", role: "ISR", status: "On-call" },
+  { name: "Falcon", role: "Support", status: "Ready" },
+  { name: "Viper", role: "Strike", status: "Idle" },
+];
+
+const statusBadge = (state: string) => {
+  switch (state) {
+    case "tracking":
+      return "warm";

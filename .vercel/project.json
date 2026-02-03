@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_5zQ2G2vKLJlbL6i8YwN6sxcBAAF5",
+  "orgId": "team_UNL2vCCcScorVxZgZgYmW8O3",
+  "projectName": "ghettobirddemo",
+  "settings": {
+    "createdAt": 1770033092717,
+    "framework": "nextjs",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

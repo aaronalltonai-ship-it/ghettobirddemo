@@ -1,0 +1,616 @@
+﻿:global(:root) {
+  --bg: #05070d;
+  --card: rgba(12, 16, 26, 0.78);
+  --stroke: rgba(255, 255, 255, 0.08);
+  --accent: #12b5a6;
+  --accent-2: #7dd3fc;
+  --ink: #f4f6ff;
+  --muted: rgba(244, 246, 255, 0.7);
+  --pill: rgba(255, 255, 255, 0.12);
+  --chip: rgba(255, 255, 255, 0.08);
+}
+
+:global(*) {
+  box-sizing: border-box;
+}
+
+:global(body) {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+.birdApp {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  background: radial-gradient(circle at 20% 20%, rgba(18, 181, 166, 0.12), transparent 35%),
+    radial-gradient(circle at 80% 0%, rgba(125, 211, 252, 0.15), transparent 40%),
+    linear-gradient(180deg, #05070d 0%, #090c17 50%, #05070d 100%);
+  padding: 24px 12px calc(96px + env(safe-area-inset-bottom));
+}
+
+.birdAppBg {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.birdOrb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(60px);
+  opacity: 0.5;
+}
+
+.orbOne {
+  width: 380px;
+  height: 380px;
+  background: rgba(18, 181, 166, 0.35);
+  top: -120px;
+  left: -80px;
+}
+
+.orbTwo {
+  width: 320px;
+  height: 320px;
+  background: rgba(125, 211, 252, 0.28);
+  top: 40px;
+  right: -140px;
+}
+
+.orbThree {
+  width: 260px;
+  height: 260px;
+  background: rgba(255, 191, 75, 0.2);
+  bottom: -120px;
+  left: 120px;
+}
+
+.birdGrid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 36px 36px;
+  opacity: 0.4;
+}
+
+.birdDevice {
+  position: relative;
+  z-index: 1;
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.statusbar {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.coreWrap {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--stroke);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.coreVideo {
+  width: 100%;
+  display: block;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.coreGlow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 30%, rgba(18, 181, 166, 0.18), transparent 60%);
+  pointer-events: none;
+}
+
+.titleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.titleBlock h1 {
+  margin: 4px 0 2px;
+  font-family: "Unbounded", "IBM Plex Sans", sans-serif;
+  letter-spacing: 0.01em;
+}
+
+.titleBlock p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  color: var(--accent);
+}
+
+.sub {
+  font-size: 0.9rem;
+}
+
+.saveButton {
+  border: 1px solid var(--stroke);
+  background: var(--card);
+  color: var(--ink);
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.statusPills {
+  display: flex;
+  gap: 8px;
+}
+
+.badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--pill);
+  color: var(--ink);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
+.live {
+  background: rgba(18, 181, 166, 0.22);
+  color: #7ff1e5;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cardHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cardKicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.74rem;
+  color: var(--accent-2);
+}
+
+.pill {
+  background: var(--pill);
+  color: var(--ink);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+
+.visionFrame {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--stroke);
+}
+
+.visionVideo {
+  width: 100%;
+  display: block;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.visionGrid,
+.visionScan,
+.visionTarget {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.visionGrid {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mix-blend-mode: screen;
+}
+
+.visionScan {
+  background: linear-gradient(180deg, transparent 0%, rgba(18, 181, 166, 0.35) 50%, transparent 100%);
+  animation: scan 3.4s ease-in-out infinite;
+}
+
+@keyframes scan {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+.visionTarget {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 12px;
+  margin: 10%;
+}
+
+.visionLabel {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.metricsRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.metricTile {
+  background: var(--chip);
+  border-radius: 12px;
+  padding: 10px;
+  text-align: center;
+}
+
+.metricTile span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.metricTile strong {
+  font-size: 1.1rem;
+}
+
+.opsToggle {
+  display: flex;
+  gap: 8px;
+}
+
+.chip {
+  background: var(--chip);
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  color: var(--ink);
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.isActive {
+  border-color: rgba(18, 181, 166, 0.6);
+  color: #7ff1e5;
+}
+
+.opsPanel {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.opsStatus {
+  display: flex;
+  justify-content: space-between;
+}
+
+.opsLabel {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.75rem;
+}
+
+.opsValue {
+  font-weight: 700;
+}
+
+.commandRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.helper {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.voiceRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.talkButton {
+  flex: 1;
+  background: linear-gradient(120deg, rgba(18, 181, 166, 0.8), rgba(125, 211, 252, 0.8));
+  border: none;
+  border-radius: 14px;
+  color: #041014;
+  padding: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.voiceBars {
+  display: grid;
+  grid-template-columns: repeat(4, 4px);
+  gap: 4px;
+  height: 32px;
+  align-items: end;
+}
+
+.voiceBar {
+  width: 4px;
+  background: var(--accent-2);
+  border-radius: 8px;
+  animation: pulseBar 1s ease-in-out infinite;
+}
+
+.bar2 {
+  animation-delay: 0.1s;
+}
+
+.bar3 {
+  animation-delay: 0.2s;
+}
+
+.bar4 {
+  animation-delay: 0.3s;
+}
+
+@keyframes pulseBar {
+  0%,
+  100% {
+    height: 8px;
+    opacity: 0.7;
+  }
+  50% {
+    height: 28px;
+    opacity: 1;
+  }
+}
+
+.transcript {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.transcriptLabel {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-bottom: 4px;
+}
+
+.transcript p {
+  margin: 0;
+}
+
+.input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--ink);
+}
+
+.keyRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.keyLabel {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.commsLog {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.commsBubble {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(18, 181, 166, 0.15);
+  border: 1px solid rgba(18, 181, 166, 0.35);
+}
+
+.commsName {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.commsActions {
+  flex-direction: column;
+}
+
+.ghost {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.commsForm {
+  display: flex;
+  gap: 8px;
+}
+
+.sendButton {
+  background: var(--chip);
+  border: 1px solid var(--stroke);
+  color: var(--muted);
+  padding: 10px 12px;
+  border-radius: 12px;
+  min-width: 72px;
+}
+
+.telemetryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.telemetryItem {
+  background: var(--chip);
+  border-radius: 12px;
+  padding: 10px;
+  text-align: center;
+}
+
+.telemetryItem span {
+  display: block;
+  color: var(--muted);
+}
+
+.missionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.missionList li {
+  display: flex;
+  justify-content: space-between;
+  background: var(--chip);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.missionTime {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.galleryGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.galleryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.galleryVideo {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.galleryMeta h3 {
+  margin: 0 0 4px;
+}
+
+.galleryMeta p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.nav {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 8px;
+  background: rgba(5, 7, 13, 0.9);
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  margin-top: 8px;
+}
+
+.navItem {
+  background: var(--chip);
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  color: var(--muted);
+  padding: 10px 6px;
+  font-weight: 600;
+}
+
+.navItem.isActive,
+.isActive.navItem {
+  color: #7ff1e5;
+  border-color: rgba(18, 181, 166, 0.6);
+}
+
+@media (min-width: 540px) {
+  .birdApp {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .galleryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(*) {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
