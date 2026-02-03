@@ -26,9 +26,6 @@ const getAllowedDevOrigins = () => {
 /** @type {import("next").NextConfig} */
 const nextConfig = {
   allowedDevOrigins: getAllowedDevOrigins(),
-  turbopack: {
-    root: __dirname,
-  },
 };
 
 module.exports = nextConfig;

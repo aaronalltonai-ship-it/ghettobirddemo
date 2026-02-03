@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "dev:webpack": "cross-env NEXT_DISABLE_TURBOPACK=1 next dev",
-    "build": "cross-env NEXT_DISABLE_TURBOPACK=1 next build",
-    "build:webpack": "cross-env NEXT_DISABLE_TURBOPACK=1 next build",
+    "build": "cross-env NEXT_DISABLE_TURBOPACK=1 TURBOPACK=0 NEXT_PRIVATE_BUILD_WITH_TURBOPACK=0 NEXT_TURBOPACK=0 next build",
+    "build:webpack": "cross-env NEXT_DISABLE_TURBOPACK=1 TURBOPACK=0 NEXT_PRIVATE_BUILD_WITH_TURBOPACK=0 NEXT_TURBOPACK=0 next build",
     "start": "next start",
     "lint": "eslint src next.config.js eslint.config.mjs --no-cache",
     "db:push": "prisma db push",
