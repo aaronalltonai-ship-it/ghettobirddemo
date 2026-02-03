@@ -520,7 +520,7 @@ export default function PageClient() {
         <section className={`${styles.card} ${styles.galleryCard}`}>
           <div className={styles.cardHead}>
             <p className={styles.cardKicker}>Captured clips</p>
-            <span className={styles.pill}>{fieldClips.length} feeds</span>
+            <span className={styles.pill}>{galleryClips.length} feeds</span>
           </div>
           <div className={styles.galleryGrid}>
             {galleryClips.map((clip) => (
