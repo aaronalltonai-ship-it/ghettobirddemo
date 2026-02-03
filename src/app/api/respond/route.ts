@@ -1,61 +1,98 @@
 import { NextResponse } from "next/server";
 
-const SAMPLE_REPLY =
-  "Copy. Holding pattern. Returning latest telemetry and locking perimeter.";
-
-const makeBeepBase64 = () => {
-  const sampleRate = 16000;
-  const durationSeconds = 0.25;
-  const freq = 440;
-  const samples = Math.floor(sampleRate * durationSeconds);
-
-  const header = Buffer.alloc(44);
-  const data = Buffer.alloc(samples * 2);
-
-  let offset = 0;
-  const wstr = (s: string) => {
-    header.write(s, offset, "ascii");
-    offset += s.length;
-  };
-  const w16 = (v: number) => {
-    header.writeUInt16LE(v, offset);
-    offset += 2;
-  };
-  const w32 = (v: number) => {
-    header.writeUInt32LE(v, offset);
-    offset += 4;
-  };
-
-  wstr("RIFF");
-  w32(36 + data.length);
-  wstr("WAVE");
-  wstr("fmt ");
-  w32(16);
-  w16(1); // PCM
-  w16(1); // mono
-  w32(sampleRate);
-  w32(sampleRate * 2); // byte rate
-  w16(2); // block align
-  w16(16); // bits per sample
-  wstr("data");
-  w32(data.length);
-
-  for (let i = 0; i < samples; i += 1) {
-    const t = i / sampleRate;
-    const sample = Math.floor(Math.sin(2 * Math.PI * freq * t) * 0.25 * 32767);
-    data.writeInt16LE(sample, i * 2);
-  }
-
-  const wav = Buffer.concat([header, data]);
-  return wav.toString("base64");
-};
-
 export const runtime = "nodejs";
 
-export async function POST() {
-  return NextResponse.json({
-    reply: SAMPLE_REPLY,
-    audio_base64: makeBeepBase64(),
-    media_type: "audio/wav",
+const DEFAULT_VOICE_ID = "nuzVc5hpXBWZjFEe4izg"; // male, Mexican accent
+const SYSTEM_PROMPT =
+  "You are GBird, an intelligent airborne assistant. Keep replies crisp, factual, and under 60 words. If asked for status, include battery, distance, and safety. Avoid slang unless the user uses it first.";
+
+async function callGroq(transcript: string) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("Missing GROQ_API_KEY");
+
+  const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "mixtral-8x7b-32768",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: transcript },
+      ],
+      temperature: 0.3,
+      max_tokens: 160,
+    }),
   });
+
+  if (!resp.ok) {
+    const detail = await resp.text();
+    throw new Error(`Groq error: ${detail}`);
+  }
+  const data = (await resp.json()) as {
+    choices?: { message: { content: string } }[];
+  };
+  const reply = data.choices?.[0]?.message?.content?.trim();
+  if (!reply) throw new Error("Groq returned no reply");
+  return reply;
+}
+
+async function callElevenLabsTTS(text: string) {
+  const apiKey = process.env.ELEVENLABS_API_KEY || process.env.ELEVEN_LABS_API_KEY;
+  if (!apiKey) throw new Error("Missing ELEVENLABS_API_KEY");
+
+  const voiceId = process.env.NEXT_PUBLIC_ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
+  const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "xi-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      text,
+      model_id: "eleven_multilingual_v2",
+      voice_settings: { stability: 0.55, similarity_boost: 0.8 },
+      output_format: "mp3_22050_32",
+    }),
+  });
+
+  if (!resp.ok) {
+    const detail = await resp.text();
+    throw new Error(`ElevenLabs error: ${detail}`);
+  }
+
+  const arrayBuf = await resp.arrayBuffer();
+  const b64 = Buffer.from(arrayBuf).toString("base64");
+  return { audio_base64: b64, media_type: "audio/mpeg" };
+}
+
+export async function POST(request: Request) {
+  let transcript: string | undefined;
+  try {
+    const body = (await request.json()) as { transcript?: string };
+    transcript = body.transcript?.trim();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
+  if (!transcript || transcript.length < 2) {
+    return NextResponse.json({ error: "transcript is required" }, { status: 400 });
+  }
+
+  try {
+    const reply = await callGroq(transcript);
+    const tts = await callElevenLabsTTS(reply);
+    return NextResponse.json({
+      reply,
+      audio_base64: tts.audio_base64,
+      media_type: tts.media_type,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
