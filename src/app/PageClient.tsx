@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import styles from "./page.module.css";
 
 const quickCommands = ["Transcend", "Omniscient", "Reality", "Divine"];
