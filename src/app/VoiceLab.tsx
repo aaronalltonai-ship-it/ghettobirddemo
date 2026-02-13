@@ -4,16 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import styles from "./page.module.css";
 
 const DEFAULT_DESCRIPTION =
-  "Warm, confident baritone with relaxed cadence, clear diction, and subtle grit. Medium pace, steady energy, professional and reassuring.";
+  "Very high pitch with high grit, fast pace, very high energy, and sharp consonants. Bilingual English and Spanish with a clear urban accent. Confident, bold, and punchy delivery.";
 
 const DEFAULT_TEXT =
-  "Control room check. Airspace remains stable and visibility is clear. Maintain altitude at seven point eight thousand feet, hold perimeter scan, and report any anomaly within sector five. Keep comms crisp and steady.";
+  "Control room check. Airspace is clear. Keep it tight, keep it moving. Mantente listo y reporta cualquier cambio rapido. Comms stay hot.";
 
 const PRESETS = [
   {
-    name: "Warm & Confident",
+    name: "Hyped Bilingual",
     description:
-      "Warm, confident baritone with relaxed cadence, clear diction, and subtle grit. Medium pace, steady energy, professional and reassuring.",
+      "Very high pitch with high grit, fast pace, very high energy, and sharp consonants. Bilingual English and Spanish with a clear urban accent. Confident, bold, and punchy delivery.",
     text: DEFAULT_TEXT,
   },
   {
@@ -214,7 +214,7 @@ export default function VoiceLab() {
             <button
               type="button"
               className={styles.ghostButton}
-              onClick={() => applyPreset("Warm & Confident")}
+              onClick={() => applyPreset("Hyped Bilingual")}
             >
               Reset
             </button>

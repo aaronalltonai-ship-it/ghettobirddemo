@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import styles from "./page.module.css";
 
-const quickCommands = ["Transcend", "Omniscient", "Reality", "Divine"];
+const quickCommands = ["Boulevard sweep", "Palm tree perch", "Low rider roll", "Cut the night"];
 const autopilotRoutes = ["Orbit", "Grid sweep", "Perimeter"];
 const telemetry = [
   { label: "Battery", value: "78%" },
@@ -11,9 +11,9 @@ const telemetry = [
   { label: "GPS", value: "Locked" },
 ];
 const missionLog = [
-  { time: "21:04", text: "Voice link established." },
-  { time: "21:07", text: "Perimeter sweep complete." },
-  { time: "21:11", text: "Target tagged. Holding." },
+  { time: "21:04", text: "Boulevard palm tree sway. Eyes up." },
+  { time: "21:07", text: "Low riders hop in. Block stays calm." },
+  { time: "21:11", text: "Wings cut the night. Respect the signal." },
 ];
 const autopilotClips = [
   {
@@ -80,7 +80,7 @@ export default function PageClient() {
   const [opsMode, setOpsMode] = useState<"Autopilot" | "Perch">("Autopilot");
   const [route, setRoute] = useState<string>("Orbit");
   const [liveTranscript, setLiveTranscript] = useState<string>(
-    '"Sweep the alley. Lock target. Hold altitude."'
+    '"That is it. Boulevard palm tree sway. Low riders hop in. Wings cut the night."'
   );
   const [recording, setRecording] = useState<boolean>(false);
   const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
@@ -92,7 +92,7 @@ export default function PageClient() {
   >([
     {
       from: "GBird",
-      text: "Comms online. Awaiting mission directives.",
+      text: "Comms online. Boulevard is talking.",
       time: "21:00",
     },
   ]);
@@ -155,7 +155,7 @@ export default function PageClient() {
         reserveBattery = Math.max(0, reserveBattery - boost);
         appendComms({
           from: "GBird",
-          text: "Emergency pack activated to reach base safely.",
+          text: "Emergency pack lit. I am not dropping on your watch.",
         });
       }
       const distanceMeters = Math.max(
@@ -174,7 +174,7 @@ export default function PageClient() {
   };
 
   const handleQuickCommand = (cmd: string) => {
-    const text = `${cmd} acknowledged. Executing now.`;
+    const text = `${cmd}. Wings up.`;
     setLiveTranscript(`"${text}"`);
     appendComms({ from: "You", text: cmd });
     appendComms({ from: "GBird", text });
@@ -188,7 +188,7 @@ export default function PageClient() {
 
   const handleCommsChip = (text: string) => {
     appendComms({ from: "You", text });
-    const ack = "On it. Cycling tasking and reporting back.";
+    const ack = "On it. Running the block and circling back.";
     appendComms({ from: "GBird", text: ack });
     setLiveTranscript(`"${ack}"`);
   };
@@ -198,7 +198,7 @@ export default function PageClient() {
     const trimmed = commsInput.trim();
     if (!trimmed) return;
     appendComms({ from: "You", text: trimmed });
-    const ack = "Received. Executing and will advise.";
+    const ack = "Copy. Moving now. I will report back.";
     appendComms({ from: "GBird", text: ack });
     setLiveTranscript(`"${ack}"`);
     setCommsInput("");
@@ -323,7 +323,7 @@ export default function PageClient() {
             <div className={styles.titleBlock}>
               <p className={styles.kicker}>GBird</p>
               <h1>Field Ops</h1>
-              <p className={styles.sub}>Robot demo - Voice + Vision</p>
+            <p className={styles.sub}>Block ops demo - Voice + Vision</p>
             </div>
             <button
               type="button"
@@ -469,7 +469,7 @@ export default function PageClient() {
                 </button>
               ))}
             </div>
-            <p className={styles.helper}>Autopilot cycles the camera feed on a loop.</p>
+          <p className={styles.helper}>Autopilot runs the feed on a tight loop.</p>
           </div>
         </section>
 
@@ -568,24 +568,26 @@ export default function PageClient() {
               type="button"
               className={`${styles.chip} ${styles.ghost}`}
               onClick={() =>
-                handleCommsChip("Autopilot sweep: report anomalies and heat signatures.")
+                handleCommsChip("Boulevard sweep. Call out heat and movement.")
               }
             >
-              Autopilot sweep: report anomalies and heat signatures.
+              Boulevard sweep. Call out heat and movement.
             </button>
             <button
               type="button"
               className={`${styles.chip} ${styles.ghost}`}
-              onClick={() => handleCommsChip("Hold patrol loop and confirm perimeter status.")}
+              onClick={() =>
+                handleCommsChip("Palm tree perch. Confirm perimeter stays quiet.")
+              }
             >
-              Hold patrol loop and confirm perimeter status.
+              Palm tree perch. Confirm perimeter stays quiet.
             </button>
             <button
               type="button"
               className={`${styles.chip} ${styles.ghost}`}
-              onClick={() => handleCommsChip("Cycle the block and return a concise mission update.")}
+              onClick={() => handleCommsChip("Low rider roll. Send a clean update.")}
             >
-              Cycle the block and return a concise mission update.
+              Low rider roll. Send a clean update.
             </button>
           </div>
           <form className={styles.commsForm} onSubmit={handleCommsSubmit}>
