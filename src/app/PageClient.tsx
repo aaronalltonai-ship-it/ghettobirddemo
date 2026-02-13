@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import styles from "./page.module.css";
+
+type BatteryManager = {
+  level: number;
+  addEventListener: (type: "levelchange", listener: () => void) => void;
+  removeEventListener: (type: "levelchange", listener: () => void) => void;
+};
 
 const quickCommands = ["Boulevard sweep", "Palm tree perch", "Low rider roll", "Cut the night"];
 const autopilotRoutes = ["Orbit", "Grid sweep", "Perimeter"];
@@ -76,7 +82,7 @@ const perchClips = [
 ];
 
 export default function PageClient() {
-  const [nav, setNav] = useState<"home" | "voice" | "vision" | "logs">("home");
+  const [nav, setNav] = useState<"home" | "voice" | "vision" | "logs" | "clips">("home");
   const [opsMode, setOpsMode] = useState<"Autopilot" | "Perch">("Autopilot");
   const [route, setRoute] = useState<string>("Orbit");
   const [liveTranscript, setLiveTranscript] = useState<string>(
@@ -97,11 +103,6 @@ export default function PageClient() {
     },
   ]);
 
-  const homeRef = useRef<HTMLDivElement | null>(null);
-  const voiceRef = useRef<HTMLDivElement | null>(null);
-  const visionRef = useRef<HTMLDivElement | null>(null);
-  const logsRef = useRef<HTMLDivElement | null>(null);
-
   const heroClip = useMemo(() => "/clips/red-lens-overlook.mp4", []);
   const visionClip = useMemo(
     () => (opsMode === "Perch" ? "/clips/perch-neighborhood.mp4" : "/clips/alley-zoom.mp4"),
@@ -114,9 +115,13 @@ export default function PageClient() {
     distanceMeters: 120,
     uptimeMinutes: 42,
   });
+  const [position, setPosition] = useState({ lat: 34.0401, lng: -118.2489, heading: 72 });
+  const [deviceBattery, setDeviceBattery] = useState<number | null>(null);
   const [memory, setMemory] = useState<
     { from: "GBird" | "You"; text: string; time: string; mode: "voice" | "comms" }[]
   >([]);
+  const perchLine = '"Perched up. Quiet eyes, wide scan. Keeping it tight."';
+  const autopilotLine = '"Autopilot rolling. Block in motion. Keep comms live."';
 
   // Load persisted memory on mount
   useEffect(() => {
@@ -131,11 +136,42 @@ export default function PageClient() {
     }
   }, []);
 
+  // Track device battery (when supported)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const nav = navigator as Navigator & { getBattery?: () => Promise<BatteryManager> };
+    if (!nav.getBattery) return;
+    let battery: BatteryManager | null = null;
+    const sync = () => {
+      if (!battery) return;
+      setDeviceBattery(Math.round(battery.level * 100));
+    };
+    nav
+      .getBattery()
+      .then((bat) => {
+        battery = bat;
+        sync();
+        battery.addEventListener("levelchange", sync);
+      })
+      .catch(() => null);
+    return () => {
+      if (battery) {
+        battery.removeEventListener("levelchange", sync);
+      }
+    };
+  }, []);
+
   // Persist memory
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("gbird-memory", JSON.stringify(memory.slice(-50)));
   }, [memory]);
+
+  // Match voice tone to ops mode
+  useEffect(() => {
+    if (recording) return;
+    setLiveTranscript(opsMode === "Perch" ? perchLine : autopilotLine);
+  }, [opsMode, recording]);
 
   const recordMemory = (entry: { from: "GBird" | "You"; text: string; mode: "voice" | "comms" }) => {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -165,6 +201,11 @@ export default function PageClient() {
       const uptimeMinutes = prev.uptimeMinutes + 5;
       return { battery, reserveBattery, distanceMeters, uptimeMinutes };
     });
+    setPosition((prev) => ({
+      lat: Number((prev.lat + (Math.random() - 0.5) * 0.0012).toFixed(4)),
+      lng: Number((prev.lng + (Math.random() - 0.5) * 0.0012).toFixed(4)),
+      heading: (prev.heading + Math.round(Math.random() * 30 - 15) + 360) % 360,
+    }));
   };
 
   const appendComms = (entry: { from: "GBird" | "You"; text: string }) => {
@@ -202,20 +243,6 @@ export default function PageClient() {
     appendComms({ from: "GBird", text: ack });
     setLiveTranscript(`"${ack}"`);
     setCommsInput("");
-  };
-
-  const scrollToSection = (key: typeof nav) => {
-    const map = {
-      home: homeRef,
-      voice: voiceRef,
-      vision: visionRef,
-      logs: logsRef,
-    } as const;
-    const ref = map[key];
-    if (ref.current) {
-      ref.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-    setNav(key);
   };
 
   const stopRecording = () => {
@@ -299,7 +326,7 @@ export default function PageClient() {
         <span className={styles.birdGrid}></span>
       </div>
 
-      <div className={styles.birdDevice} ref={homeRef}>
+      <div className={styles.birdDevice}>
         <div className={styles.statusbar}>
           <span className={styles.statusTime}>9:41</span>
           <span className={styles.statusRight}>5G | 78%</span>
@@ -341,139 +368,245 @@ export default function PageClient() {
           </div>
         </header>
 
-        <section className={`${styles.card} ${styles.visionCard}`} ref={visionRef}>
-          <div className={styles.cardHead}>
-            <p className={styles.cardKicker}>Vision feed</p>
-            <span className={styles.pill}>Active</span>
-          </div>
-          <div className={styles.visionFrame}>
-            <video
-              className={styles.visionVideo}
-              src={visionClip}
-              muted
-              autoPlay
-              loop
-              playsInline
-              preload="metadata"
-              aria-label="GBird vision forward view"
-              onTimeUpdate={(event) => {
-                if (opsMode === "Perch" && event.currentTarget.currentTime > 4) {
-                  event.currentTarget.currentTime = 0;
-                }
-              }}
-            />
-            <span className={styles.visionGrid} aria-hidden></span>
-            <span className={styles.visionScan} aria-hidden></span>
-            <span className={styles.visionTarget} aria-hidden></span>
-            <div className={styles.visionLabel}>
-              <span>Autopilot</span>
-              <span>Forward</span>
-            </div>
-          </div>
-          <div className={styles.metricsRow}>
-            <div className={styles.metricTile}>
-              <span>Objects</span>
-              <strong>12</strong>
-            </div>
-            <div className={styles.metricTile}>
-              <span>Threat</span>
-              <strong>Low</strong>
-            </div>
-            <div className={styles.metricTile}>
-              <span>FPS</span>
-              <strong>30</strong>
-            </div>
-          </div>
-        </section>
-
-        <section className={`${styles.card} ${styles.statsCard}`}>
-          <div className={styles.cardHead}>
-            <p className={styles.cardKicker}>Bot stats</p>
-            <button type="button" className={styles.ghostButton} onClick={refreshStats}>
-              Refresh
-            </button>
-          </div>
-          <div className={styles.telemetryGrid}>
-            <div className={styles.telemetryItem}>
-              <span>Battery</span>
-              <strong>{botStats.battery}%</strong>
-            </div>
-            <div className={styles.telemetryItem}>
-              <span>Emergency reserve</span>
-              <strong>{botStats.reserveBattery}%</strong>
-            </div>
-            <div className={styles.telemetryItem}>
-              <span>Distance</span>
-              <strong>{botStats.distanceMeters} m</strong>
-            </div>
-            <div className={styles.telemetryItem}>
-              <span>Uptime</span>
-              <strong>{botStats.uptimeMinutes} min</strong>
-            </div>
-          </div>
-        </section>
-
-        <section className={`${styles.card} ${styles.memoryCard}`}>
-          <div className={styles.cardHead}>
-            <p className={styles.cardKicker}>Memory</p>
-            <span className={styles.pill}>{memory.length} entries</span>
-          </div>
-          {memory.length === 0 ? (
-            <p className={styles.helper}>No stored conversations yet.</p>
-          ) : (
-            <ul className={styles.missionList}>
-              {[...memory].reverse().slice(0, 8).map((item, idx) => (
-                <li key={`${item.time}-${idx}`}>
-                  <span className={styles.missionTime}>{item.time}</span>
-                  <span className={styles.missionText}>
-                    {item.from}: {item.text}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section className={`${styles.card} ${styles.opsCard}`}>
-          <div className={styles.cardHead}>
-            <p className={styles.cardKicker}>Ops mode</p>
-            <div className={styles.opsToggle} role="tablist" aria-label="Ops mode">
-              {["Autopilot", "Perch"].map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className={`${styles.chip} ${opsMode === mode ? styles.isActive : ""}`}
-                  aria-pressed={opsMode === mode}
-                  onClick={() => setOpsMode(mode as typeof opsMode)}
-                >
-                  {mode}
+        {nav === "home" ? (
+          <>
+            <section className={`${styles.card} ${styles.statsCard}`}>
+              <div className={styles.cardHead}>
+                <p className={styles.cardKicker}>Mission status</p>
+                <button type="button" className={styles.ghostButton} onClick={refreshStats}>
+                  Refresh
                 </button>
-              ))}
-            </div>
-          </div>
-          <div className={styles.opsPanel}>
-            <div className={styles.opsStatus}>
-              <span className={styles.opsLabel}>Route</span>
-              <span className={styles.opsValue}>{route}</span>
-            </div>
-            <div className={styles.commandRow}>
-              {autopilotRoutes.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`${styles.chip} ${route === option ? styles.isActive : ""}`}
-                  aria-pressed={route === option}
-                  onClick={() => setRoute(option)}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          <p className={styles.helper}>Autopilot runs the feed on a tight loop.</p>
-          </div>
-        </section>
+              </div>
+              <div className={styles.telemetryGrid}>
+                <div className={styles.telemetryItem}>
+                  <span>Battery</span>
+                  <strong>{botStats.battery}%</strong>
+                </div>
+                <div className={styles.telemetryItem}>
+                  <span>Device</span>
+                  <strong>{deviceBattery === null ? "--" : `${deviceBattery}%`}</strong>
+                </div>
+                <div className={styles.telemetryItem}>
+                  <span>Emergency reserve</span>
+                  <strong>{botStats.reserveBattery}%</strong>
+                </div>
+                <div className={styles.telemetryItem}>
+                  <span>Distance</span>
+                  <strong>{botStats.distanceMeters} m</strong>
+                </div>
+                <div className={styles.telemetryItem}>
+                  <span>Uptime</span>
+                  <strong>{botStats.uptimeMinutes} min</strong>
+                </div>
+              </div>
+            </section>
 
-        <section className={`${styles.card} ${styles.voiceCard}`} ref={voiceRef}>
+            <section className={`${styles.card} ${styles.mapCard}`}>
+              <div className={styles.cardHead}>
+                <p className={styles.cardKicker}>Live location</p>
+                <span className={styles.pill}>Tracking</span>
+              </div>
+              <div className={styles.mapFrame} role="img" aria-label="GBird live map">
+                <div className={styles.mapGrid} aria-hidden></div>
+                <div
+                  className={styles.mapPing}
+                  style={{ left: "58%", top: "42%" }}
+                  aria-hidden
+                >
+                  <span className={styles.mapPulse}></span>
+                </div>
+                <div className={styles.mapCoords}>
+                  <span>LAT {position.lat.toFixed(4)}</span>
+                  <span>LNG {position.lng.toFixed(4)}</span>
+                  <span>HDG {position.heading}°</span>
+                </div>
+              </div>
+            </section>
+
+            <section className={`${styles.card} ${styles.opsCard}`}>
+              <div className={styles.cardHead}>
+                <p className={styles.cardKicker}>Ops mode</p>
+                <div className={styles.opsToggle} role="tablist" aria-label="Ops mode">
+                  {["Autopilot", "Perch"].map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className={`${styles.chip} ${opsMode === mode ? styles.isActive : ""}`}
+                      aria-pressed={opsMode === mode}
+                      onClick={() => setOpsMode(mode as typeof opsMode)}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.opsPanel}>
+                <div className={styles.opsStatus}>
+                  <span className={styles.opsLabel}>Route</span>
+                  <span className={styles.opsValue}>{route}</span>
+                </div>
+                <div className={styles.commandRow}>
+                  {autopilotRoutes.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      className={`${styles.chip} ${route === option ? styles.isActive : ""}`}
+                      aria-pressed={route === option}
+                      onClick={() => setRoute(option)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+                <p className={styles.helper}>Autopilot runs the feed on a tight loop.</p>
+              </div>
+            </section>
+
+            <section className={`${styles.card} ${styles.commsCard}`}>
+              <div className={styles.cardHead}>
+                <p className={styles.cardKicker}>Comms link</p>
+                <span className={styles.pill}>Connected</span>
+              </div>
+              <div className={styles.keyRow}>
+                <label className={styles.keyLabel} htmlFor="groq-key">
+                  Groq API key
+                </label>
+                <input
+                  id="groq-key"
+                  className={styles.input}
+                  type="password"
+                  placeholder="gsk_..."
+                  autoComplete="off"
+                />
+                <p className={styles.helper}>
+                  Stored locally. Required for live Groq comms.{" "}
+                  <a
+                    className={styles.link}
+                    href="https://console.groq.com/keys"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Get a Groq API key
+                  </a>
+                </p>
+              </div>
+              {groqError ? (
+                <div
+                  className={styles.commsBubble}
+                  style={{ borderColor: "rgba(255,107,53,0.5)", background: "rgba(255,107,53,0.12)" }}
+                >
+                  <span className={styles.commsName}>Groq</span>
+                  <p>{groqError}</p>
+                </div>
+              ) : null}
+              <div className={styles.commsLog} aria-live="polite">
+                {commsLog.map((entry, index) => (
+                  <div
+                    key={`${entry.time}-${index}-${entry.from}`}
+                    className={`${styles.commsBubble} ${
+                      entry.from === "GBird" ? styles.assistant : styles.user
+                    }`}
+                  >
+                    <div className={styles.commsBubbleHead}>
+                      <span className={styles.commsName}>{entry.from}</span>
+                      <span className={styles.commsTime}>{entry.time}</span>
+                    </div>
+                    <p>{entry.text}</p>
+                  </div>
+                ))}
+              </div>
+              <div className={`${styles.commandRow} ${styles.commsActions}`}>
+                <button
+                  type="button"
+                  className={`${styles.chip} ${styles.ghost}`}
+                  onClick={() =>
+                    handleCommsChip("Boulevard sweep. Call out heat and movement.")
+                  }
+                >
+                  Boulevard sweep. Call out heat and movement.
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.chip} ${styles.ghost}`}
+                  onClick={() =>
+                    handleCommsChip("Palm tree perch. Confirm perimeter stays quiet.")
+                  }
+                >
+                  Palm tree perch. Confirm perimeter stays quiet.
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.chip} ${styles.ghost}`}
+                  onClick={() => handleCommsChip("Low rider roll. Send a clean update.")}
+                >
+                  Low rider roll. Send a clean update.
+                </button>
+              </div>
+              <form className={styles.commsForm} onSubmit={handleCommsSubmit}>
+                <input
+                  className={styles.input}
+                  type="text"
+                  placeholder="Send a command..."
+                  value={commsInput}
+                  onChange={(event) => setCommsInput(event.target.value)}
+                />
+                <button className={styles.sendButton} type="submit">
+                  Send
+                </button>
+              </form>
+            </section>
+          </>
+        ) : null}
+
+        {nav === "vision" ? (
+          <section className={`${styles.card} ${styles.visionCard}`}>
+            <div className={styles.cardHead}>
+              <p className={styles.cardKicker}>Vision feed</p>
+              <span className={styles.pill}>Active</span>
+            </div>
+            <div className={styles.visionFrame}>
+              <video
+                className={styles.visionVideo}
+                src={visionClip}
+                muted
+                autoPlay
+                loop
+                playsInline
+                preload="metadata"
+                aria-label="GBird vision forward view"
+                onTimeUpdate={(event) => {
+                  if (opsMode === "Perch" && event.currentTarget.currentTime > 4) {
+                    event.currentTarget.currentTime = 0;
+                  }
+                }}
+              />
+              <span className={styles.visionGrid} aria-hidden></span>
+              <span className={styles.visionScan} aria-hidden></span>
+              <span className={styles.visionTarget} aria-hidden></span>
+              <div className={styles.visionLabel}>
+                <span>Autopilot</span>
+                <span>Forward</span>
+              </div>
+            </div>
+            <div className={styles.metricsRow}>
+              <div className={styles.metricTile}>
+                <span>Objects</span>
+                <strong>12</strong>
+              </div>
+              <div className={styles.metricTile}>
+                <span>Threat</span>
+                <strong>Low</strong>
+              </div>
+              <div className={styles.metricTile}>
+                <span>FPS</span>
+                <strong>30</strong>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {nav === "voice" ? (
+          <section className={`${styles.card} ${styles.voiceCard}`}>
           <div className={styles.cardHead}>
             <p className={styles.cardKicker}>Voice control</p>
             <span className={styles.pill}>Ready</span>
@@ -509,151 +642,85 @@ export default function PageClient() {
             ))}
           </div>
         </section>
+        ) : null}
 
-        <section className={`${styles.card} ${styles.commsCard}`}>
-          <div className={styles.cardHead}>
-            <p className={styles.cardKicker}>Comms link</p>
-            <span className={styles.pill}>Connected</span>
-          </div>
-          <div className={styles.keyRow}>
-            <label className={styles.keyLabel} htmlFor="groq-key">
-              Groq API key
-            </label>
-            <input
-              id="groq-key"
-              className={styles.input}
-              type="password"
-              placeholder="gsk_..."
-              autoComplete="off"
-            />
-            <p className={styles.helper}>
-              Stored locally. Required for live Groq comms.{" "}
-              <a
-                className={styles.link}
-                href="https://console.groq.com/keys"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Get a Groq API key
-              </a>
-            </p>
-          </div>
-          {groqError ? (
-            <div
-              className={styles.commsBubble}
-              style={{ borderColor: "rgba(255,107,53,0.5)", background: "rgba(255,107,53,0.12)" }}
-            >
-              <span className={styles.commsName}>Groq</span>
-              <p>{groqError}</p>
-            </div>
-          ) : null}
-          <div className={styles.commsLog} aria-live="polite">
-            {commsLog.map((entry, index) => (
-              <div
-                key={`${entry.time}-${index}-${entry.from}`}
-                className={`${styles.commsBubble} ${
-                  entry.from === "GBird" ? styles.assistant : styles.user
-                }`}
-              >
-                <div className={styles.commsBubbleHead}>
-                  <span className={styles.commsName}>{entry.from}</span>
-                  <span className={styles.commsTime}>{entry.time}</span>
-                </div>
-                <p>{entry.text}</p>
+        {nav === "logs" ? (
+          <>
+            <section className={`${styles.card} ${styles.memoryCard}`}>
+              <div className={styles.cardHead}>
+                <p className={styles.cardKicker}>Memory</p>
+                <span className={styles.pill}>{memory.length} entries</span>
               </div>
-            ))}
-          </div>
-          <div className={`${styles.commandRow} ${styles.commsActions}`}>
-            <button
-              type="button"
-              className={`${styles.chip} ${styles.ghost}`}
-              onClick={() =>
-                handleCommsChip("Boulevard sweep. Call out heat and movement.")
-              }
-            >
-              Boulevard sweep. Call out heat and movement.
-            </button>
-            <button
-              type="button"
-              className={`${styles.chip} ${styles.ghost}`}
-              onClick={() =>
-                handleCommsChip("Palm tree perch. Confirm perimeter stays quiet.")
-              }
-            >
-              Palm tree perch. Confirm perimeter stays quiet.
-            </button>
-            <button
-              type="button"
-              className={`${styles.chip} ${styles.ghost}`}
-              onClick={() => handleCommsChip("Low rider roll. Send a clean update.")}
-            >
-              Low rider roll. Send a clean update.
-            </button>
-          </div>
-          <form className={styles.commsForm} onSubmit={handleCommsSubmit}>
-            <input
-              className={styles.input}
-              type="text"
-              placeholder="Send a command..."
-              value={commsInput}
-              onChange={(event) => setCommsInput(event.target.value)}
-            />
-            <button className={styles.sendButton} type="submit">
-              Send
-            </button>
-          </form>
-        </section>
+              {memory.length === 0 ? (
+                <p className={styles.helper}>No stored conversations yet.</p>
+              ) : (
+                <ul className={styles.missionList}>
+                  {[...memory].reverse().slice(0, 8).map((item, idx) => (
+                    <li key={`${item.time}-${idx}`}>
+                      <span className={styles.missionTime}>{item.time}</span>
+                      <span className={styles.missionText}>
+                        {item.from}: {item.text}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
-        <section className={styles.telemetryGrid}>
-          {telemetry.map((item) => (
-            <div key={item.label} className={styles.telemetryItem}>
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-            </div>
-          ))}
-        </section>
-
-        <section className={`${styles.card} ${styles.missionCard}`} ref={logsRef}>
-          <div className={styles.cardHead}>
-            <p className={styles.cardKicker}>Mission log</p>
-            <span className={styles.pill}>Synced</span>
-          </div>
-          <ul className={styles.missionList}>
-            {missionLog.map((entry) => (
-              <li key={entry.time}>
-                <span className={styles.missionTime}>{entry.time}</span>
-                <span className={styles.missionText}>{entry.text}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className={`${styles.card} ${styles.galleryCard}`}>
-          <div className={styles.cardHead}>
-            <p className={styles.cardKicker}>Captured clips</p>
-            <span className={styles.pill}>{galleryClips.length} feeds</span>
-          </div>
-          <div className={styles.galleryGrid}>
-            {galleryClips.map((clip) => (
-              <div key={clip.id} className={styles.galleryItem}>
-                <video
-                  className={styles.galleryVideo}
-                  src={clip.file}
-                  muted
-                  autoPlay
-                  loop
-                  playsInline
-                  preload="metadata"
-                  aria-label={clip.title}
-                />
-                <div className={styles.galleryMeta}>
-                  <h3>{clip.title}</h3>
-                  <p>{clip.note}</p>
-                </div>
+            <section className={`${styles.card} ${styles.missionCard}`}>
+              <div className={styles.cardHead}>
+                <p className={styles.cardKicker}>Mission log</p>
+                <span className={styles.pill}>Synced</span>
               </div>
-            ))}
-          </div>
-        </section>
+              <ul className={styles.missionList}>
+                {missionLog.map((entry) => (
+                  <li key={entry.time}>
+                    <span className={styles.missionTime}>{entry.time}</span>
+                    <span className={styles.missionText}>{entry.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section className={styles.telemetryGrid}>
+              {telemetry.map((item) => (
+                <div key={item.label} className={styles.telemetryItem}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </section>
+          </>
+        ) : null}
+
+        {nav === "clips" ? (
+          <section className={`${styles.card} ${styles.galleryCard}`}>
+            <div className={styles.cardHead}>
+              <p className={styles.cardKicker}>Captured clips</p>
+              <span className={styles.pill}>{galleryClips.length} feeds</span>
+            </div>
+            <div className={styles.galleryGrid}>
+              {galleryClips.map((clip) => (
+                <div key={clip.id} className={styles.galleryItem}>
+                  <video
+                    className={styles.galleryVideo}
+                    src={clip.file}
+                    muted
+                    autoPlay
+                    loop
+                    playsInline
+                    preload="metadata"
+                    aria-label={clip.title}
+                  />
+                  <div className={styles.galleryMeta}>
+                    <h3>{clip.title}</h3>
+                    <p>{clip.note}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <nav className={styles.nav} aria-label="Primary">
           {[
@@ -661,13 +728,14 @@ export default function PageClient() {
             { key: "voice", label: "Voice" },
             { key: "vision", label: "Vision" },
             { key: "logs", label: "Logs" },
+            { key: "clips", label: "Clips" },
           ].map((item) => (
             <button
               key={item.key}
               className={`${styles.navItem} ${nav === item.key ? styles.isActive : ""}`}
               type="button"
               aria-pressed={nav === item.key}
-              onClick={() => scrollToSection(item.key as typeof nav)}
+              onClick={() => setNav(item.key as typeof nav)}
             >
               {item.label}
             </button>
