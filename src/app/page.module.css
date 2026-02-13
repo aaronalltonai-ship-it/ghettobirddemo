@@ -336,6 +336,10 @@
   gap: 10px;
 }
 
+.sfxCard .commandRow {
+  margin-top: 4px;
+}
+
 .mapCard {
   padding-bottom: 12px;
 }

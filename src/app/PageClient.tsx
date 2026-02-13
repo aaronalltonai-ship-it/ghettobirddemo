@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import styles from "./page.module.css";
 
 type BatteryManager = {
@@ -105,7 +105,10 @@ export default function PageClient() {
 
   const heroClip = useMemo(() => "/clips/red-lens-overlook.mp4", []);
   const visionClip = useMemo(
-    () => (opsMode === "Perch" ? "/clips/perch-neighborhood.mp4" : "/clips/alley-zoom.mp4"),
+    () =>
+      opsMode === "Perch"
+        ? "/clips/perch-neighborhood.mp4"
+        : "https://ghettobirddemo.vercel.app/clips/red-lens-overlook.mp4",
     [opsMode]
   );
   const galleryClips = opsMode === "Perch" ? perchClips : autopilotClips;
@@ -117,6 +120,9 @@ export default function PageClient() {
   });
   const [position, setPosition] = useState({ lat: 34.0401, lng: -118.2489, heading: 72 });
   const [deviceBattery, setDeviceBattery] = useState<number | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const alarmOscRef = useRef<OscillatorNode | null>(null);
+  const sirenIntervalRef = useRef<number | null>(null);
   const [memory, setMemory] = useState<
     { from: "GBird" | "You"; text: string; time: string; mode: "voice" | "comms" }[]
   >([]);
@@ -166,6 +172,19 @@ export default function PageClient() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("gbird-memory", JSON.stringify(memory.slice(-50)));
   }, [memory]);
+
+  useEffect(
+    () => () => {
+      if (alarmOscRef.current) {
+        alarmOscRef.current.stop();
+        alarmOscRef.current.disconnect();
+      }
+      if (sirenIntervalRef.current) {
+        window.clearInterval(sirenIntervalRef.current);
+      }
+    },
+    []
+  );
 
   // Match voice tone to ops mode
   useEffect(() => {
@@ -252,6 +271,74 @@ export default function PageClient() {
     setRecording(false);
   };
 
+  const getAudioContext = () => {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new AudioContext();
+    }
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume().catch(() => null);
+    }
+    return audioCtxRef.current;
+  };
+
+  const stopSfx = () => {
+    if (alarmOscRef.current) {
+      alarmOscRef.current.stop();
+      alarmOscRef.current.disconnect();
+      alarmOscRef.current = null;
+    }
+    if (sirenIntervalRef.current) {
+      window.clearInterval(sirenIntervalRef.current);
+      sirenIntervalRef.current = null;
+    }
+  };
+
+  const playAlarm = () => {
+    stopSfx();
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.value = 880;
+    gain.gain.value = 0.08;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    alarmOscRef.current = osc;
+  };
+
+  const playAlert = () => {
+    stopSfx();
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 1200;
+    gain.gain.value = 0.06;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  };
+
+  const playSiren = () => {
+    stopSfx();
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sawtooth";
+    gain.gain.value = 0.05;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    alarmOscRef.current = osc;
+    let up = true;
+    sirenIntervalRef.current = window.setInterval(() => {
+      osc.frequency.value = up ? 640 : 980;
+      up = !up;
+    }, 350);
+  };
+
   const startRecording = async () => {
     if (recording) return;
     if (typeof window === "undefined") return;
@@ -287,7 +374,16 @@ export default function PageClient() {
         const respond = await fetch("/api/respond", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transcript: data.text }),
+          body: JSON.stringify({
+            transcript: data.text,
+            context: {
+              opsMode,
+              route,
+              botStats,
+              position,
+              deviceBattery,
+            },
+          }),
         });
         const rjson = (await respond.json()) as {
           reply?: string;
@@ -460,6 +556,28 @@ export default function PageClient() {
                 </div>
                 <p className={styles.helper}>Autopilot runs the feed on a tight loop.</p>
               </div>
+            </section>
+
+            <section className={`${styles.card} ${styles.sfxCard}`}>
+              <div className={styles.cardHead}>
+                <p className={styles.cardKicker}>Sound FX</p>
+                <span className={styles.pill}>System</span>
+              </div>
+              <div className={styles.commandRow}>
+                <button type="button" className={styles.chip} onClick={playAlarm}>
+                  Alarm
+                </button>
+                <button type="button" className={styles.chip} onClick={playAlert}>
+                  Alert
+                </button>
+                <button type="button" className={styles.chip} onClick={playSiren}>
+                  Siren
+                </button>
+                <button type="button" className={`${styles.chip} ${styles.ghost}`} onClick={stopSfx}>
+                  Stop
+                </button>
+              </div>
+              <p className={styles.helper}>Tap to test alarms. Works best with volume up.</p>
             </section>
 
             <section className={`${styles.card} ${styles.commsCard}`}>

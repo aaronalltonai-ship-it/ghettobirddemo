@@ -4,11 +4,30 @@ export const runtime = "nodejs";
 
 const DEFAULT_VOICE_ID = "nuzVc5hpXBWZjFEe4izg"; // male, Mexican accent
 const SYSTEM_PROMPT =
-  "You are GBird, an intelligent airborne assistant. Keep replies crisp, factual, and under 60 words. If asked for status, include battery, distance, and safety. Avoid slang unless the user uses it first.";
+  "You are GBird, an intelligent airborne assistant. Keep replies crisp, factual, and under 80 words. Use provided telemetry for precise status, location, and route guidance. If asked for status, include battery, distance, and safety. If asked for location, include lat/lng/heading. Ask at most one clarifying question if needed. Avoid stereotypes.";
 
-async function callGroq(transcript: string) {
+type TelemetryContext = {
+  opsMode?: string;
+  route?: string;
+  botStats?: {
+    battery?: number;
+    reserveBattery?: number;
+    distanceMeters?: number;
+    uptimeMinutes?: number;
+  };
+  position?: {
+    lat?: number;
+    lng?: number;
+    heading?: number;
+  };
+  deviceBattery?: number | null;
+};
+
+async function callGroq(transcript: string, context?: TelemetryContext) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("Missing GROQ_API_KEY");
+
+  const contextLine = context ? `Telemetry context: ${JSON.stringify(context)}.` : "Telemetry context: none.";
 
   const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -20,6 +39,7 @@ async function callGroq(transcript: string) {
       model: "mixtral-8x7b-32768",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: contextLine },
         { role: "user", content: transcript },
       ],
       temperature: 0.3,
@@ -72,9 +92,14 @@ async function callElevenLabsTTS(text: string) {
 
 export async function POST(request: Request) {
   let transcript: string | undefined;
+  let context: TelemetryContext | undefined;
   try {
-    const body = (await request.json()) as { transcript?: string };
+    const body = (await request.json()) as {
+      transcript?: string;
+      context?: TelemetryContext;
+    };
     transcript = body.transcript?.trim();
+    context = body.context;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
@@ -84,7 +109,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const reply = await callGroq(transcript);
+    const reply = await callGroq(transcript, context);
     const tts = await callElevenLabsTTS(reply);
     return NextResponse.json({
       reply,
