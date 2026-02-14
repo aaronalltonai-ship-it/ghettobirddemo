@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 
 const DEFAULT_VOICE_ID = "nuzVc5hpXBWZjFEe4izg"; // male, Mexican accent
 const SYSTEM_PROMPT =
-  "You are GBird, an intelligent airborne assistant. Respond ONLY in strict JSON with keys: reply (string) and sfx (one of \"none\",\"alert\",\"alarm\",\"siren\"). Keep reply crisp, factual, under 80 words. Use provided telemetry for precise status, location, and route guidance. If asked for status, include battery, distance, and safety. If asked for location, include lat/lng/heading. Ask at most one clarifying question if needed. Avoid stereotypes. If a cop is seen or mentioned, set sfx to \"siren\".";
+  "You are GBird, an intelligent airborne assistant. Respond ONLY in strict JSON with keys: reply (string) and sfx (one of \"none\",\"alert\",\"alarm\",\"siren\"). Keep reply crisp, factual, under 80 words. Use provided telemetry for precise status, location, and route guidance. If asked for status, include battery, distance, altitude, and safety. If asked for location, include lat/lng/heading. Ask at most one clarifying question if needed. Avoid stereotypes and slang unless the user uses it first. If a cop is seen or mentioned, set sfx to \"siren\".";
 
 type TelemetryContext = {
   opsMode?: string;
@@ -14,6 +14,7 @@ type TelemetryContext = {
     reserveBattery?: number;
     distanceMeters?: number;
     uptimeMinutes?: number;
+    altitudeFeet?: number;
   };
   position?: {
     lat?: number;
@@ -24,6 +25,25 @@ type TelemetryContext = {
 };
 
 type GroqResult = { reply: string; sfx: "none" | "alert" | "alarm" | "siren" };
+
+const formatStatus = (context?: TelemetryContext) => {
+  const stats = context?.botStats;
+  const battery = stats?.battery;
+  const distance = stats?.distanceMeters;
+  const altitude = stats?.altitudeFeet;
+  const heading = context?.position?.heading;
+  const safety = battery !== undefined && battery <= 10 ? "Critical" : "Nominal";
+  const parts = [
+    battery !== undefined ? `Batt ${battery}%` : null,
+    distance !== undefined ? `Dist ${distance}m` : null,
+    altitude !== undefined ? `Alt ${altitude}ft` : null,
+    heading !== undefined ? `Hdg ${heading}°` : null,
+    context?.opsMode ? `Mode ${context.opsMode}` : null,
+    context?.route ? `Route ${context.route}` : null,
+    `Safe ${safety}`,
+  ].filter(Boolean);
+  return parts.length ? `Status — ${parts.join(" • ")}` : "";
+};
 
 async function callGroq(transcript: string, context?: TelemetryContext): Promise<GroqResult> {
   const apiKey = process.env.GROQ_API_KEY;
@@ -62,9 +82,12 @@ async function callGroq(transcript: string, context?: TelemetryContext): Promise
     const parsed = JSON.parse(content) as GroqResult;
     if (!parsed.reply) throw new Error("Missing reply");
     if (!parsed.sfx) parsed.sfx = "none";
+    const status = formatStatus(context);
+    if (status) parsed.reply = `${parsed.reply}\n${status}`;
     return parsed;
   } catch {
-    return { reply: content, sfx: "none" };
+    const status = formatStatus(context);
+    return { reply: status ? `${content}\n${status}` : content, sfx: "none" };
   }
 }
 

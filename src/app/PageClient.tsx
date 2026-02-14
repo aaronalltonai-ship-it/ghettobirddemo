@@ -118,6 +118,7 @@ export default function PageClient() {
     reserveBattery: 20,
     distanceMeters: 120,
     uptimeMinutes: 42,
+    altitudeFeet: 7800,
   });
   const [position, setPosition] = useState({ lat: 34.0401, lng: -118.2489, heading: 72 });
   const [devicePosition, setDevicePosition] = useState<{
@@ -245,7 +246,11 @@ export default function PageClient() {
         Math.min(500, prev.distanceMeters + Math.round(Math.random() * 20 - 10))
       );
       const uptimeMinutes = prev.uptimeMinutes + 5;
-      return { battery, reserveBattery, distanceMeters, uptimeMinutes };
+      const altitudeFeet = Math.max(
+        500,
+        Math.min(12000, prev.altitudeFeet + Math.round(Math.random() * 120 - 60))
+      );
+      return { battery, reserveBattery, distanceMeters, uptimeMinutes, altitudeFeet };
     });
     setPosition((prev) => ({
       lat: Number((prev.lat + (Math.random() - 0.5) * 0.0012).toFixed(4)),
