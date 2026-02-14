@@ -38,7 +38,7 @@ async function callGroq(transcript: string, context?: TelemetryContext): Promise
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "compound",
+      model: "groq/compound-mini",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "system", content: contextLine },
