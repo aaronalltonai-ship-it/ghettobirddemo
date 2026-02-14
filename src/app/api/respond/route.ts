@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 
 const DEFAULT_VOICE_ID = "nuzVc5hpXBWZjFEe4izg"; // male, Mexican accent
 const SYSTEM_PROMPT =
-  "You are GBird, an intelligent airborne assistant. Keep replies crisp, factual, and under 80 words. Use provided telemetry for precise status, location, and route guidance. If asked for status, include battery, distance, and safety. If asked for location, include lat/lng/heading. Ask at most one clarifying question if needed. Avoid stereotypes.";
+  "You are GBird, an intelligent airborne assistant. Respond ONLY in strict JSON with keys: reply (string) and sfx (one of \"none\",\"alert\",\"alarm\",\"siren\"). Keep reply crisp, factual, under 80 words. Use provided telemetry for precise status, location, and route guidance. If asked for status, include battery, distance, and safety. If asked for location, include lat/lng/heading. Ask at most one clarifying question if needed. Avoid stereotypes. If a cop is seen or mentioned, set sfx to \"siren\".";
 
 type TelemetryContext = {
   opsMode?: string;
@@ -23,7 +23,9 @@ type TelemetryContext = {
   deviceBattery?: number | null;
 };
 
-async function callGroq(transcript: string, context?: TelemetryContext) {
+type GroqResult = { reply: string; sfx: "none" | "alert" | "alarm" | "siren" };
+
+async function callGroq(transcript: string, context?: TelemetryContext): Promise<GroqResult> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("Missing GROQ_API_KEY");
 
@@ -36,7 +38,7 @@ async function callGroq(transcript: string, context?: TelemetryContext) {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "mixtral-8x7b-32768",
+      model: "compound",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "system", content: contextLine },
@@ -54,9 +56,16 @@ async function callGroq(transcript: string, context?: TelemetryContext) {
   const data = (await resp.json()) as {
     choices?: { message: { content: string } }[];
   };
-  const reply = data.choices?.[0]?.message?.content?.trim();
-  if (!reply) throw new Error("Groq returned no reply");
-  return reply;
+  const content = data.choices?.[0]?.message?.content?.trim();
+  if (!content) throw new Error("Groq returned no reply");
+  try {
+    const parsed = JSON.parse(content) as GroqResult;
+    if (!parsed.reply) throw new Error("Missing reply");
+    if (!parsed.sfx) parsed.sfx = "none";
+    return parsed;
+  } catch {
+    return { reply: content, sfx: "none" };
+  }
 }
 
 async function callElevenLabsTTS(text: string) {
@@ -109,10 +118,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const reply = await callGroq(transcript, context);
-    const tts = await callElevenLabsTTS(reply);
+    const groq = await callGroq(transcript, context);
+    const tts = await callElevenLabsTTS(groq.reply);
     return NextResponse.json({
-      reply,
+      reply: groq.reply,
+      sfx: groq.sfx,
       audio_base64: tts.audio_base64,
       media_type: tts.media_type,
     });

@@ -85,6 +85,7 @@ export default function PageClient() {
   const [nav, setNav] = useState<"home" | "voice" | "vision" | "logs" | "clips">("home");
   const [opsMode, setOpsMode] = useState<"Autopilot" | "Perch">("Autopilot");
   const [route, setRoute] = useState<string>("Orbit");
+  const [manualClip, setManualClip] = useState<string | null>(null);
   const [liveTranscript, setLiveTranscript] = useState<string>(
     '"That is it. Boulevard palm tree sway. Low riders hop in. Wings cut the night."'
   );
@@ -104,13 +105,14 @@ export default function PageClient() {
   ]);
 
   const heroClip = useMemo(() => "/clips/red-lens-overlook.mp4", []);
-  const visionClip = useMemo(
+  const defaultVisionClip = useMemo(
     () =>
       opsMode === "Perch"
         ? "/clips/perch-neighborhood.mp4"
         : "https://ghettobirddemo.vercel.app/clips/red-lens-overlook.mp4",
     [opsMode]
   );
+  const visionClip = manualClip ?? defaultVisionClip;
   const galleryClips = opsMode === "Perch" ? perchClips : autopilotClips;
   const [botStats, setBotStats] = useState({
     battery: 78,
@@ -119,6 +121,11 @@ export default function PageClient() {
     uptimeMinutes: 42,
   });
   const [position, setPosition] = useState({ lat: 34.0401, lng: -118.2489, heading: 72 });
+  const [devicePosition, setDevicePosition] = useState<{
+    lat: number;
+    lng: number;
+    accuracy: number;
+  } | null>(null);
   const [deviceBattery, setDeviceBattery] = useState<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const alarmOscRef = useRef<OscillatorNode | null>(null);
@@ -186,6 +193,26 @@ export default function PageClient() {
     []
   );
 
+  // Track device location (when supported and permitted)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("geolocation" in navigator)) return;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setDevicePosition({
+          lat: Number(pos.coords.latitude.toFixed(5)),
+          lng: Number(pos.coords.longitude.toFixed(5)),
+          accuracy: Math.round(pos.coords.accuracy),
+        });
+      },
+      () => null,
+      { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 }
+    );
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
   // Match voice tone to ops mode
   useEffect(() => {
     if (recording) return;
@@ -233,9 +260,24 @@ export default function PageClient() {
     recordMemory({ ...entry, mode: "comms" });
   };
 
+  const clipByCommand = (cmd: string) => {
+    const map: Record<string, string> = {
+      "Boulevard sweep": "/clips/street-corner-scan.mp4",
+      "Palm tree perch": "/clips/perch-neighborhood.mp4",
+      "Low rider roll": "/clips/wooden-gate.mp4",
+      "Cut the night": "/clips/red-lens-overlook.mp4",
+      Orbit: "/clips/red-lens-left-pan.mp4",
+      "Grid sweep": "/clips/alley.mp4",
+      Perimeter: "/clips/alley-zoom.mp4",
+    };
+    return map[cmd];
+  };
+
   const handleQuickCommand = (cmd: string) => {
     const text = `${cmd}. Wings up.`;
     setLiveTranscript(`"${text}"`);
+    const clip = clipByCommand(cmd);
+    if (clip) setManualClip(clip);
     appendComms({ from: "You", text: cmd });
     appendComms({ from: "GBird", text });
   };
@@ -251,6 +293,8 @@ export default function PageClient() {
     const ack = "On it. Running the block and circling back.";
     appendComms({ from: "GBird", text: ack });
     setLiveTranscript(`"${ack}"`);
+    const clip = clipByCommand("Grid sweep");
+    if (clip) setManualClip(clip);
   };
 
   const handleCommsSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -261,6 +305,8 @@ export default function PageClient() {
     const ack = "Copy. Moving now. I will report back.";
     appendComms({ from: "GBird", text: ack });
     setLiveTranscript(`"${ack}"`);
+    const clip = clipByCommand("Perimeter");
+    if (clip) setManualClip(clip);
     setCommsInput("");
   };
 
@@ -339,6 +385,28 @@ export default function PageClient() {
     }, 350);
   };
 
+  const renderCommsLog = (limit?: number) => {
+    const items = limit ? commsLog.slice(-limit) : commsLog;
+    return (
+      <div className={styles.commsLog} aria-live="polite">
+        {items.map((entry, index) => (
+          <div
+            key={`${entry.time}-${index}-${entry.from}`}
+            className={`${styles.commsBubble} ${
+              entry.from === "GBird" ? styles.assistant : styles.user
+            }`}
+          >
+            <div className={styles.commsBubbleHead}>
+              <span className={styles.commsName}>{entry.from}</span>
+              <span className={styles.commsTime}>{entry.time}</span>
+            </div>
+            <p>{entry.text}</p>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const startRecording = async () => {
     if (recording) return;
     if (typeof window === "undefined") return;
@@ -381,6 +449,7 @@ export default function PageClient() {
               route,
               botStats,
               position,
+              devicePosition,
               deviceBattery,
             },
           }),
@@ -389,6 +458,7 @@ export default function PageClient() {
           reply?: string;
           audio_base64?: string;
           media_type?: string;
+          sfx?: "none" | "alert" | "alarm" | "siren";
           error?: string;
         };
         if (!respond.ok || !rjson.reply || !rjson.audio_base64) {
@@ -396,6 +466,9 @@ export default function PageClient() {
         }
         setLiveTranscript(rjson.reply);
         recordMemory({ from: "GBird", text: rjson.reply, mode: "voice" });
+        if (rjson.sfx === "alert") playAlert();
+        if (rjson.sfx === "alarm") playAlarm();
+        if (rjson.sfx === "siren") playSiren();
         const buf = Uint8Array.from(atob(rjson.audio_base64), (c) => c.charCodeAt(0));
         const audioBlob = new Blob([buf], { type: rjson.media_type ?? "audio/mpeg" });
         const url = URL.createObjectURL(audioBlob);
@@ -502,6 +575,13 @@ export default function PageClient() {
                 <p className={styles.cardKicker}>Live location</p>
                 <span className={styles.pill}>Tracking</span>
               </div>
+              {devicePosition ? (
+                <p className={styles.helper}>
+                  Device GPS active • Accuracy {devicePosition.accuracy}m
+                </p>
+              ) : (
+                <p className={styles.helper}>Device GPS unavailable. Showing bot telemetry.</p>
+              )}
               <div className={styles.mapFrame} role="img" aria-label="GBird live map">
                 <div className={styles.mapGrid} aria-hidden></div>
                 <div
@@ -512,8 +592,12 @@ export default function PageClient() {
                   <span className={styles.mapPulse}></span>
                 </div>
                 <div className={styles.mapCoords}>
-                  <span>LAT {position.lat.toFixed(4)}</span>
-                  <span>LNG {position.lng.toFixed(4)}</span>
+                  <span>
+                    LAT {(devicePosition?.lat ?? position.lat).toFixed(4)}
+                  </span>
+                  <span>
+                    LNG {(devicePosition?.lng ?? position.lng).toFixed(4)}
+                  </span>
                   <span>HDG {position.heading}°</span>
                 </div>
               </div>
@@ -548,7 +632,11 @@ export default function PageClient() {
                       type="button"
                       className={`${styles.chip} ${route === option ? styles.isActive : ""}`}
                       aria-pressed={route === option}
-                      onClick={() => setRoute(option)}
+                      onClick={() => {
+                        setRoute(option);
+                        const clip = clipByCommand(option);
+                        if (clip) setManualClip(clip);
+                      }}
                     >
                       {option}
                     </button>
@@ -582,31 +670,14 @@ export default function PageClient() {
 
             <section className={`${styles.card} ${styles.commsCard}`}>
               <div className={styles.cardHead}>
-                <p className={styles.cardKicker}>Comms link</p>
-                <span className={styles.pill}>Connected</span>
-              </div>
-              <div className={styles.keyRow}>
-                <label className={styles.keyLabel} htmlFor="groq-key">
-                  Groq API key
-                </label>
-                <input
-                  id="groq-key"
-                  className={styles.input}
-                  type="password"
-                  placeholder="gsk_..."
-                  autoComplete="off"
-                />
-                <p className={styles.helper}>
-                  Stored locally. Required for live Groq comms.{" "}
-                  <a
-                    className={styles.link}
-                    href="https://console.groq.com/keys"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Get a Groq API key
-                  </a>
-                </p>
+                <p className={styles.cardKicker}>Quick comms</p>
+                <button
+                  type="button"
+                  className={styles.ghostButton}
+                  onClick={() => setNav("logs")}
+                >
+                  Open comms panel
+                </button>
               </div>
               {groqError ? (
                 <div
@@ -617,22 +688,7 @@ export default function PageClient() {
                   <p>{groqError}</p>
                 </div>
               ) : null}
-              <div className={styles.commsLog} aria-live="polite">
-                {commsLog.map((entry, index) => (
-                  <div
-                    key={`${entry.time}-${index}-${entry.from}`}
-                    className={`${styles.commsBubble} ${
-                      entry.from === "GBird" ? styles.assistant : styles.user
-                    }`}
-                  >
-                    <div className={styles.commsBubbleHead}>
-                      <span className={styles.commsName}>{entry.from}</span>
-                      <span className={styles.commsTime}>{entry.time}</span>
-                    </div>
-                    <p>{entry.text}</p>
-                  </div>
-                ))}
-              </div>
+              {renderCommsLog(3)}
               <div className={`${styles.commandRow} ${styles.commsActions}`}>
                 <button
                   type="button"
@@ -764,6 +820,58 @@ export default function PageClient() {
 
         {nav === "logs" ? (
           <>
+            <section className={`${styles.card} ${styles.commsCard}`}>
+              <div className={styles.cardHead}>
+                <p className={styles.cardKicker}>Comms link</p>
+                <span className={styles.pill}>Connected</span>
+              </div>
+              <div className={styles.keyRow}>
+                <label className={styles.keyLabel} htmlFor="groq-key">
+                  Groq API key
+                </label>
+                <input
+                  id="groq-key"
+                  className={styles.input}
+                  type="password"
+                  placeholder="gsk_..."
+                  autoComplete="off"
+                />
+                <p className={styles.helper}>
+                  Stored locally. Required for live Groq comms.{" "}
+                  <a
+                    className={styles.link}
+                    href="https://console.groq.com/keys"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Get a Groq API key
+                  </a>
+                </p>
+              </div>
+              {groqError ? (
+                <div
+                  className={styles.commsBubble}
+                  style={{ borderColor: "rgba(255,107,53,0.5)", background: "rgba(255,107,53,0.12)" }}
+                >
+                  <span className={styles.commsName}>Groq</span>
+                  <p>{groqError}</p>
+                </div>
+              ) : null}
+              {renderCommsLog()}
+              <form className={styles.commsForm} onSubmit={handleCommsSubmit}>
+                <input
+                  className={styles.input}
+                  type="text"
+                  placeholder="Send a command..."
+                  value={commsInput}
+                  onChange={(event) => setCommsInput(event.target.value)}
+                />
+                <button className={styles.sendButton} type="submit">
+                  Send
+                </button>
+              </form>
+            </section>
+
             <section className={`${styles.card} ${styles.memoryCard}`}>
               <div className={styles.cardHead}>
                 <p className={styles.cardKicker}>Memory</p>
