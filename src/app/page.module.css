@@ -108,13 +108,49 @@
   overflow: hidden;
   border: 1px solid var(--stroke);
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  background: linear-gradient(135deg, rgba(9, 13, 24, 0.95), rgba(3, 5, 10, 0.9));
 }
 
-.coreVideo {
-  width: 100%;
+.coreData {
+  position: relative;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 190px;
+}
+
+.coreHeader h2 {
+  margin: 6px 0 0;
+  font-family: "Unbounded", "IBM Plex Sans", sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.coreGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.coreItem {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.coreItem span {
   display: block;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
+  font-size: 0.74rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.coreItem strong {
+  display: block;
+  font-size: 1.05rem;
+  margin-top: 6px;
 }
 
 .coreGlow {

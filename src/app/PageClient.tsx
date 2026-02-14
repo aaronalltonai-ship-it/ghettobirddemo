@@ -104,7 +104,6 @@ export default function PageClient() {
     },
   ]);
 
-  const heroClip = useMemo(() => "/clips/red-lens-overlook.mp4", []);
   const defaultVisionClip = useMemo(
     () =>
       opsMode === "Perch"
@@ -130,6 +129,7 @@ export default function PageClient() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const alarmOscRef = useRef<OscillatorNode | null>(null);
   const sirenIntervalRef = useRef<number | null>(null);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const [memory, setMemory] = useState<
     { from: "GBird" | "You"; text: string; time: string; mode: "voice" | "comms" }[]
   >([]);
@@ -473,7 +473,12 @@ export default function PageClient() {
         const audioBlob = new Blob([buf], { type: rjson.media_type ?? "audio/mpeg" });
         const url = URL.createObjectURL(audioBlob);
         setReplyAudioUrl(url);
+        if (ttsAudioRef.current) {
+          ttsAudioRef.current.pause();
+          ttsAudioRef.current.currentTime = 0;
+        }
         const audio = new Audio(url);
+        ttsAudioRef.current = audio;
         audio.play().catch(() => null);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Transcription error";
@@ -503,16 +508,46 @@ export default function PageClient() {
 
         <header className={styles.header}>
           <div className={styles.coreWrap}>
-            <video
-              className={styles.coreVideo}
-              src={heroClip}
-              muted
-              autoPlay
-              loop
-              playsInline
-              preload="metadata"
-              aria-label="GBird core feed"
-            />
+            <div className={styles.coreData} role="presentation">
+              <div className={styles.coreHeader}>
+                <p className={styles.kicker}>GBird</p>
+                <h2>Ops Data Screen</h2>
+              </div>
+              <div className={styles.coreGrid}>
+                <div className={styles.coreItem}>
+                  <span>Mode</span>
+                  <strong>{opsMode}</strong>
+                </div>
+                <div className={styles.coreItem}>
+                  <span>Route</span>
+                  <strong>{route}</strong>
+                </div>
+                <div className={styles.coreItem}>
+                  <span>Bot Batt</span>
+                  <strong>{botStats.battery}%</strong>
+                </div>
+                <div className={styles.coreItem}>
+                  <span>Device</span>
+                  <strong>{deviceBattery === null ? "--" : `${deviceBattery}%`}</strong>
+                </div>
+                <div className={styles.coreItem}>
+                  <span>Lat</span>
+                  <strong>{(devicePosition?.lat ?? position.lat).toFixed(4)}</strong>
+                </div>
+                <div className={styles.coreItem}>
+                  <span>Lng</span>
+                  <strong>{(devicePosition?.lng ?? position.lng).toFixed(4)}</strong>
+                </div>
+                <div className={styles.coreItem}>
+                  <span>Heading</span>
+                  <strong>{position.heading}°</strong>
+                </div>
+                <div className={styles.coreItem}>
+                  <span>Uptime</span>
+                  <strong>{botStats.uptimeMinutes}m</strong>
+                </div>
+              </div>
+            </div>
             <span className={styles.coreGlow} aria-hidden></span>
           </div>
           <div className={styles.titleRow}>
