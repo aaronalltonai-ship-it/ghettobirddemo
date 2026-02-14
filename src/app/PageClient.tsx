@@ -94,6 +94,7 @@ export default function PageClient() {
   const [groqError, setGroqError] = useState<string | null>(null);
   const [replyAudioUrl, setReplyAudioUrl] = useState<string | null>(null);
   const [commsInput, setCommsInput] = useState<string>("");
+  const [transcriptLockUntil, setTranscriptLockUntil] = useState<number>(0);
   const [commsLog, setCommsLog] = useState<
     { from: "GBird" | "You"; text: string; time: string }[]
   >([
@@ -217,8 +218,9 @@ export default function PageClient() {
   // Match voice tone to ops mode
   useEffect(() => {
     if (recording) return;
+    if (Date.now() < transcriptLockUntil) return;
     setLiveTranscript(opsMode === "Perch" ? perchLine : autopilotLine);
-  }, [opsMode, recording]);
+  }, [opsMode, recording, transcriptLockUntil]);
 
   const recordMemory = (entry: { from: "GBird" | "You"; text: string; mode: "voice" | "comms" }) => {
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -470,6 +472,7 @@ export default function PageClient() {
           throw new Error(rjson.error || "Groq/Elevens response failed");
         }
         setLiveTranscript(rjson.reply);
+        setTranscriptLockUntil(Date.now() + 8000);
         recordMemory({ from: "GBird", text: rjson.reply, mode: "voice" });
         if (rjson.sfx === "alert") playAlert();
         if (rjson.sfx === "alarm") playAlarm();
