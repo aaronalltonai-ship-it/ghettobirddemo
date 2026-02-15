@@ -126,6 +126,31 @@
   letter-spacing: 0.02em;
 }
 
+.coreTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.coreTab {
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  padding: 6px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.64rem;
+  cursor: pointer;
+}
+
+.coreTab.isActive,
+.isActive.coreTab {
+  color: #7ff1e5;
+  border-color: rgba(18, 181, 166, 0.6);
+  box-shadow: 0 0 18px rgba(18, 181, 166, 0.35);
+}
+
 .coreGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -151,6 +176,44 @@
   display: block;
   font-size: 1.05rem;
   margin-top: 6px;
+}
+
+.visionDock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  background: rgba(12, 16, 26, 0.6);
+}
+
+.visionDockHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.visionDockFrame {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--stroke);
+}
+
+.visionDockVideo {
+  width: 100%;
+  display: block;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.visionDockScan {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(18, 181, 166, 0.25) 50%, transparent 100%);
+  animation: scan 3.4s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .coreGlow {

@@ -16,11 +16,7 @@ const telemetry = [
   { label: "Signal", value: "98%" },
   { label: "GPS", value: "Locked" },
 ];
-const missionLog = [
-  { time: "21:04", text: "Boulevard palm tree sway. Eyes up." },
-  { time: "21:07", text: "Low riders hop in. Block stays calm." },
-  { time: "21:11", text: "Wings cut the night. Respect the signal." },
-];
+const missionLog: { time: string; text: string }[] = [];
 const autopilotClips = [
   {
     id: "wooden-gate",
@@ -63,7 +59,7 @@ const autopilotClips = [
 const perchClips = [
   {
     id: "perch-neighborhood",
-    title: "Perch – Neighborhood",
+    title: "Perch - Neighborhood",
     file: "/clips/perch-neighborhood.mp4",
     note: "Low perch over wood fences and backyards in a quiet block.",
   },
@@ -97,13 +93,7 @@ export default function PageClient() {
   const [transcriptLockUntil, setTranscriptLockUntil] = useState<number>(0);
   const [commsLog, setCommsLog] = useState<
     { from: "GBird" | "You"; text: string; time: string }[]
-  >([
-    {
-      from: "GBird",
-      text: "Comms online. Boulevard is talking.",
-      time: "21:00",
-    },
-  ]);
+  >([]);
 
   const defaultVisionClip = useMemo(
     () =>
@@ -281,12 +271,10 @@ export default function PageClient() {
   };
 
   const handleQuickCommand = (cmd: string) => {
-    const text = `${cmd}. Wings up.`;
-    setLiveTranscript(`"${text}"`);
     const clip = clipByCommand(cmd);
     if (clip) setManualClip(clip);
-    appendComms({ from: "You", text: cmd });
-    appendComms({ from: "GBird", text });
+    setCommsInput("");
+    void sendComms(cmd);
   };
 
   const handleSaveToHome = () => {
@@ -296,10 +284,7 @@ export default function PageClient() {
   };
 
   const handleCommsChip = (text: string) => {
-    appendComms({ from: "You", text });
-    const ack = "On it. Running the block and circling back.";
-    appendComms({ from: "GBird", text: ack });
-    setLiveTranscript(`"${ack}"`);
+    void sendComms(text);
     const clip = clipByCommand("Grid sweep");
     if (clip) setManualClip(clip);
   };
@@ -308,10 +293,7 @@ export default function PageClient() {
     event.preventDefault();
     const trimmed = commsInput.trim();
     if (!trimmed) return;
-    appendComms({ from: "You", text: trimmed });
-    const ack = "Copy. Moving now. I will report back.";
-    appendComms({ from: "GBird", text: ack });
-    setLiveTranscript(`"${ack}"`);
+    void sendComms(trimmed);
     const clip = clipByCommand("Perimeter");
     if (clip) setManualClip(clip);
     setCommsInput("");
@@ -414,6 +396,74 @@ export default function PageClient() {
     );
   };
 
+  const buildHistory = () =>
+    memory.slice(-12).map((item) => ({
+      role: item.from === "You" ? "user" : "assistant",
+      content: item.text,
+    }));
+
+  const requestAiReply = async (input: string, mode: "voice" | "comms") => {
+    setLiveTranscript("Thinking...");
+    setGroqError(null);
+    const respond = await fetch("/api/respond", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        transcript: input,
+        history: buildHistory(),
+        context: {
+          opsMode,
+          route,
+          botStats,
+          position,
+          devicePosition,
+          deviceBattery,
+        },
+      }),
+    });
+    const rjson = (await respond.json()) as {
+      reply?: string;
+      audio_base64?: string;
+      media_type?: string;
+      sfx?: "none" | "alert" | "alarm" | "siren";
+      error?: string;
+    };
+    if (!respond.ok || !rjson.reply || !rjson.audio_base64) {
+      throw new Error(rjson.error || "Groq/Elevens response failed");
+    }
+    setLiveTranscript(rjson.reply);
+    setTranscriptLockUntil(Date.now() + 8000);
+    recordMemory({ from: "GBird", text: rjson.reply, mode });
+    if (mode === "comms") {
+      appendComms({ from: "GBird", text: rjson.reply });
+    }
+    if (rjson.sfx === "alert") playAlert();
+    if (rjson.sfx === "alarm") playAlarm();
+    if (rjson.sfx === "siren") playSiren();
+    const buf = Uint8Array.from(atob(rjson.audio_base64), (c) => c.charCodeAt(0));
+    const audioBlob = new Blob([buf], { type: rjson.media_type ?? "audio/mpeg" });
+    const url = URL.createObjectURL(audioBlob);
+    setReplyAudioUrl(url);
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current.currentTime = 0;
+    }
+    const audio = new Audio(url);
+    ttsAudioRef.current = audio;
+    audio.play().catch(() => null);
+  };
+
+  const sendComms = async (text: string) => {
+    appendComms({ from: "You", text });
+    try {
+      await requestAiReply(text, "comms");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Comms error";
+      setLiveTranscript(msg);
+      setGroqError(msg);
+    }
+  };
+
   const startRecording = async () => {
     if (recording) return;
     if (typeof window === "undefined") return;
@@ -445,49 +495,7 @@ export default function PageClient() {
         }
         setLiveTranscript(data.text);
         recordMemory({ from: "You", text: data.text, mode: "voice" });
-
-        const respond = await fetch("/api/respond", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            transcript: data.text,
-            context: {
-              opsMode,
-              route,
-              botStats,
-              position,
-              devicePosition,
-              deviceBattery,
-            },
-          }),
-        });
-        const rjson = (await respond.json()) as {
-          reply?: string;
-          audio_base64?: string;
-          media_type?: string;
-          sfx?: "none" | "alert" | "alarm" | "siren";
-          error?: string;
-        };
-        if (!respond.ok || !rjson.reply || !rjson.audio_base64) {
-          throw new Error(rjson.error || "Groq/Elevens response failed");
-        }
-        setLiveTranscript(rjson.reply);
-        setTranscriptLockUntil(Date.now() + 8000);
-        recordMemory({ from: "GBird", text: rjson.reply, mode: "voice" });
-        if (rjson.sfx === "alert") playAlert();
-        if (rjson.sfx === "alarm") playAlarm();
-        if (rjson.sfx === "siren") playSiren();
-        const buf = Uint8Array.from(atob(rjson.audio_base64), (c) => c.charCodeAt(0));
-        const audioBlob = new Blob([buf], { type: rjson.media_type ?? "audio/mpeg" });
-        const url = URL.createObjectURL(audioBlob);
-        setReplyAudioUrl(url);
-        if (ttsAudioRef.current) {
-          ttsAudioRef.current.pause();
-          ttsAudioRef.current.currentTime = 0;
-        }
-        const audio = new Audio(url);
-        ttsAudioRef.current = audio;
-        audio.play().catch(() => null);
+        await requestAiReply(data.text, "voice");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Transcription error";
         setLiveTranscript(msg);
@@ -521,6 +529,24 @@ export default function PageClient() {
                 <p className={styles.kicker}>GBird</p>
                 <h2>Ops Data Screen</h2>
               </div>
+              <div className={styles.coreTabs}>
+                {[
+                  { key: "home", label: "Home" },
+                  { key: "vision", label: "Vision" },
+                  { key: "voice", label: "Voice" },
+                  { key: "logs", label: "Logs" },
+                  { key: "clips", label: "Clips" },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={`${styles.coreTab} ${nav === item.key ? styles.isActive : ""}`}
+                    onClick={() => setNav(item.key as typeof nav)}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
               <div className={styles.coreGrid}>
                 <div className={styles.coreItem}>
                   <span>Mode</span>
@@ -548,7 +574,7 @@ export default function PageClient() {
                 </div>
                 <div className={styles.coreItem}>
                   <span>Heading</span>
-                  <strong>{position.heading}°</strong>
+                  <strong>{position.heading}deg</strong>
                 </div>
                 <div className={styles.coreItem}>
                   <span>Uptime</span>
@@ -579,6 +605,37 @@ export default function PageClient() {
             <span className={styles.badge}>Sync</span>
           </div>
         </header>
+
+        <section className={styles.visionDock}>
+          <div className={styles.visionDockHead}>
+            <p className={styles.cardKicker}>Live vision</p>
+            <button
+              type="button"
+              className={styles.ghostButton}
+              onClick={() => setNav("vision")}
+            >
+              Open vision tab
+            </button>
+          </div>
+          <div className={styles.visionDockFrame}>
+            <video
+              className={styles.visionDockVideo}
+              src={visionClip}
+              muted
+              autoPlay
+              loop
+              playsInline
+              preload="metadata"
+              aria-label="GBird vision dock view"
+              onTimeUpdate={(event) => {
+                if (opsMode === "Perch" && event.currentTarget.currentTime > 4) {
+                  event.currentTarget.currentTime = 0;
+                }
+              }}
+            />
+            <span className={styles.visionDockScan} aria-hidden></span>
+          </div>
+        </section>
 
         {nav === "home" ? (
           <>
@@ -620,7 +677,7 @@ export default function PageClient() {
               </div>
               {devicePosition ? (
                 <p className={styles.helper}>
-                  Device GPS active • Accuracy {devicePosition.accuracy}m
+                  Device GPS active - Accuracy {devicePosition.accuracy}m
                 </p>
               ) : (
                 <p className={styles.helper}>Device GPS unavailable. Showing bot telemetry.</p>
@@ -641,7 +698,7 @@ export default function PageClient() {
                   <span>
                     LNG {(devicePosition?.lng ?? position.lng).toFixed(4)}
                   </span>
-                  <span>HDG {position.heading}°</span>
+                  <span>HDG {position.heading}deg</span>
                 </div>
               </div>
             </section>
@@ -731,7 +788,11 @@ export default function PageClient() {
                   <p>{groqError}</p>
                 </div>
               ) : null}
-              {renderCommsLog(3)}
+              {commsLog.length === 0 ? (
+                <p className={styles.helper}>No comms yet. Send a command to start.</p>
+              ) : (
+                renderCommsLog(3)
+              )}
               <div className={`${styles.commandRow} ${styles.commsActions}`}>
                 <button
                   type="button"
@@ -900,7 +961,11 @@ export default function PageClient() {
                   <p>{groqError}</p>
                 </div>
               ) : null}
-              {renderCommsLog()}
+              {commsLog.length === 0 ? (
+                <p className={styles.helper}>No comms yet. Send a command to start.</p>
+              ) : (
+                renderCommsLog()
+              )}
               <form className={styles.commsForm} onSubmit={handleCommsSubmit}>
                 <input
                   className={styles.input}
@@ -941,14 +1006,18 @@ export default function PageClient() {
                 <p className={styles.cardKicker}>Mission log</p>
                 <span className={styles.pill}>Synced</span>
               </div>
-              <ul className={styles.missionList}>
-                {missionLog.map((entry) => (
-                  <li key={entry.time}>
-                    <span className={styles.missionTime}>{entry.time}</span>
-                    <span className={styles.missionText}>{entry.text}</span>
-                  </li>
-                ))}
-              </ul>
+              {missionLog.length === 0 ? (
+                <p className={styles.helper}>No mission logs yet.</p>
+              ) : (
+                <ul className={styles.missionList}>
+                  {missionLog.map((entry) => (
+                    <li key={entry.time}>
+                      <span className={styles.missionTime}>{entry.time}</span>
+                      <span className={styles.missionText}>{entry.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
 
             <section className={styles.telemetryGrid}>

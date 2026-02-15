@@ -24,6 +24,11 @@ type TelemetryContext = {
   deviceBattery?: number | null;
 };
 
+type HistoryMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 type GroqResult = { reply: string; sfx: "none" | "alert" | "alarm" | "siren" };
 
 const formatStatus = (context?: TelemetryContext) => {
@@ -37,19 +42,25 @@ const formatStatus = (context?: TelemetryContext) => {
     battery !== undefined ? `Batt ${battery}%` : null,
     distance !== undefined ? `Dist ${distance}m` : null,
     altitude !== undefined ? `Alt ${altitude}ft` : null,
-    heading !== undefined ? `Hdg ${heading}°` : null,
+    heading !== undefined ? `Hdg ${heading}deg` : null,
     context?.opsMode ? `Mode ${context.opsMode}` : null,
     context?.route ? `Route ${context.route}` : null,
     `Safe ${safety}`,
   ].filter(Boolean);
-  return parts.length ? `Status — ${parts.join(" • ")}` : "";
+  return parts.length ? `Status - ${parts.join(" | ")}` : "";
 };
 
-async function callGroq(transcript: string, context?: TelemetryContext): Promise<GroqResult> {
+async function callGroq(
+  transcript: string,
+  context?: TelemetryContext,
+  history?: HistoryMessage[]
+): Promise<GroqResult> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("Missing GROQ_API_KEY");
 
   const contextLine = context ? `Telemetry context: ${JSON.stringify(context)}.` : "Telemetry context: none.";
+  const safeHistory =
+    history?.filter((item) => item.role && item.content).slice(-12) ?? [];
 
   const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -58,10 +69,11 @@ async function callGroq(transcript: string, context?: TelemetryContext): Promise
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "groq/compound-mini",
+      model: "groq/compound",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "system", content: contextLine },
+        ...safeHistory,
         { role: "user", content: transcript },
       ],
       temperature: 0.3,
@@ -125,13 +137,16 @@ async function callElevenLabsTTS(text: string) {
 export async function POST(request: Request) {
   let transcript: string | undefined;
   let context: TelemetryContext | undefined;
+  let history: HistoryMessage[] | undefined;
   try {
     const body = (await request.json()) as {
       transcript?: string;
       context?: TelemetryContext;
+      history?: HistoryMessage[];
     };
     transcript = body.transcript?.trim();
     context = body.context;
+    history = body.history;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
   }
@@ -141,7 +156,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const groq = await callGroq(transcript, context);
+    const groq = await callGroq(transcript, context, history);
     const tts = await callElevenLabsTTS(groq.reply);
     return NextResponse.json({
       reply: groq.reply,
